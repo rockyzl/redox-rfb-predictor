@@ -14,6 +14,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 from rdkit import Chem, rdBase
+from rdkit.Chem.Draw import rdMolDraw2D
 
 from redox_rfb import predict
 
@@ -41,6 +42,11 @@ class NameResolutionRequest(BaseModel):
     name: Annotated[str, Field(min_length=1, max_length=200)]
 
 
+class StructurePreviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    smiles: Annotated[str, Field(min_length=1, max_length=MAX_SMILES_LENGTH)]
+
+
 class RateLimiter:
     def __init__(self, per_minute: int) -> None:
         self.per_minute = per_minute
@@ -65,6 +71,18 @@ def _validated_smiles(raw: str) -> str:
         if not value or Chem.MolFromSmiles(value, sanitize=True) is None:
             raise ValueError("invalid SMILES")
     return value
+
+
+def _structure_record(smiles: str) -> dict[str, str]:
+    """Return a canonical, RDKit-validated structure plus a server-rendered 2D SVG."""
+    molecule = Chem.MolFromSmiles(smiles, sanitize=True)
+    if molecule is None:  # guarded by _validated_smiles; retained for fail-closed behavior
+        raise ValueError("invalid SMILES")
+    canonical = Chem.MolToSmiles(molecule, canonical=True)
+    drawer = rdMolDraw2D.MolDraw2DSVG(480, 280)
+    rdMolDraw2D.PrepareAndDrawMolecule(drawer, molecule)
+    drawer.FinishDrawing()
+    return {"smiles": canonical, "svg": drawer.GetDrawingText()}
 
 
 @asynccontextmanager
@@ -124,6 +142,19 @@ def predict_redox(payload: PredictionRequest, request: Request) -> dict[str, obj
     }
 
 
+@app.post("/v1/preview-structure")
+def preview_structure(payload: StructurePreviewRequest, request: Request) -> dict[str, object]:
+    """Validate and render a submitted SMILES before a user requests prediction."""
+    client = request.client.host if request.client else "unknown"
+    if not request.app.state.limiter.allow(client):
+        raise HTTPException(status_code=429, detail="rate limit exceeded; retry in one minute")
+    try:
+        record = _structure_record(_validated_smiles(payload.smiles))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"schema_version": SCHEMA_VERSION, **record, "renderer": "RDKit 2D"}
+
+
 @app.post("/v1/resolve-name")
 def resolve_name(payload: NameResolutionRequest, request: Request) -> dict[str, object]:
     """Resolve one chemical name through an LLM, then validate the returned SMILES."""
@@ -176,6 +207,6 @@ def resolve_name(payload: NameResolutionRequest, request: Request) -> dict[str, 
     return {
         "schema_version": SCHEMA_VERSION,
         "name": payload.name.strip(),
-        "smiles": smiles,
+        **_structure_record(smiles),
         "resolver": {"type": "LLM then RDKit validation", "model": os.environ.get("NAME_TO_SMILES_MODEL", "gpt-5-mini")},
     }
