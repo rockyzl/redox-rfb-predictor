@@ -6,4 +6,5 @@ pandas
 pyarrow
 matplotlib
 seaborn
+streamlit
 # xtb is not on PyPI — install via conda: conda install -c conda-forge xtb

@@ -1,15 +1,12 @@
-name: redox
+name: redox-rfb-service
 channels:
   - conda-forge
 dependencies:
   - python=3.11
   - rdkit
   - scikit-learn
-  - xtb
-  - pandas
-  - pyarrow
-  - numpy
-  - matplotlib
-  - seaborn
   - joblib
-  - streamlit
+  - numpy
+  - fastapi
+  - uvicorn
+  - pip

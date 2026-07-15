@@ -24,6 +24,18 @@ predict-redox --model hybrid "O=C1C=CC(=O)C=C1"  # runs xTB
 predict-redox --file examples/candidates.smi --out preds.csv
 ```
 
+### Local web app
+
+After creating the environment and installing the package, start a small local
+web interface:
+
+```bash
+streamlit run app.py
+```
+
+Then open the local address Streamlit prints (normally `http://localhost:8501`).
+The page accepts a SMILES string and runs either shipped predictor.
+
 ```python
 from redox_rfb import predict, predict_batch
 predict("O=C1C=CC(=O)C=C1")                  # -> 0.185

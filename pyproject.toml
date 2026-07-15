@@ -20,6 +20,7 @@ dependencies = [
 
 [project.optional-dependencies]
 plots = ["matplotlib", "seaborn"]
+web = ["streamlit>=1.40"]
 
 [project.scripts]
 predict-redox = "redox_rfb.predictor:_main"
