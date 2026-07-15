@@ -15,6 +15,11 @@ The live service intentionally exposes only the fast model. The xTB hybrid
 model remains available locally because it takes seconds per molecule and needs
 a controlled queue before it is appropriate for anonymous public traffic.
 
+See [the structure-assistant documentation](docs/structure-assistant.md) for
+the live flow: name suggestions → editable, RDKit-rendered structure → explicit
+user confirmation → prediction. It also explains why PubChem is preferred over
+an LLM for name-to-structure lookup and how LLM edit suggestions are constrained.
+
 Given a SMILES string, the pipeline returns a predicted redox potential. Two
 models ship trained and ready:
 
