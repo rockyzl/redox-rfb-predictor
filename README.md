@@ -4,6 +4,17 @@ Hybrid **xTB → machine-learning** prediction of aqueous **redox potential**
 (V vs SHE) for organic redox-flow-battery (RFB) molecules — quinones and
 aza-aromatics, the two dominant aqueous-RFB chemistries.
 
+## Live demo
+
+Try the fast RDKit + Morgan-fingerprint predictor in the browser:
+
+- [SciencesLoop demo](https://sciencesloop.com/agent/redox-rfb-predictor/)
+- [Public API service](https://rockyaaos-redox-rfb-predictor.hf.space/healthz)
+
+The live service intentionally exposes only the fast model. The xTB hybrid
+model remains available locally because it takes seconds per molecule and needs
+a controlled queue before it is appropriate for anonymous public traffic.
+
 Given a SMILES string, the pipeline returns a predicted redox potential. Two
 models ship trained and ready:
 
