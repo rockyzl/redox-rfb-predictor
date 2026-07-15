@@ -10,3 +10,5 @@ dependencies:
   - fastapi
   - uvicorn
   - pip
+  - pip:
+      - openai>=1.0.0

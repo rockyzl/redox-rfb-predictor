@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import json
 import threading
 import time
 from collections import defaultdict, deque
@@ -19,6 +20,7 @@ from redox_rfb import predict
 SCHEMA_VERSION = "redox-rfb-live-v1"
 MAX_SMILES_LENGTH = 512
 RATE_LIMIT_PER_MINUTE = int(os.environ.get("RATE_LIMIT_PER_MINUTE", "12"))
+NAME_RATE_LIMIT_PER_MINUTE = int(os.environ.get("NAME_RATE_LIMIT_PER_MINUTE", "3"))
 ALLOWED_ORIGINS = tuple(
     value.strip()
     for value in os.environ.get(
@@ -32,6 +34,11 @@ ALLOWED_ORIGINS = tuple(
 class PredictionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     smiles: Annotated[str, Field(min_length=1, max_length=MAX_SMILES_LENGTH)]
+
+
+class NameResolutionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: Annotated[str, Field(min_length=1, max_length=200)]
 
 
 class RateLimiter:
@@ -65,6 +72,7 @@ async def lifespan(app: FastAPI):
     # Load once on startup so the first public request is not a cold model load.
     predict("O=C1C=CC(=O)C=C1", model="rdkit")
     app.state.limiter = RateLimiter(RATE_LIMIT_PER_MINUTE)
+    app.state.name_limiter = RateLimiter(NAME_RATE_LIMIT_PER_MINUTE)
     yield
 
 
@@ -113,4 +121,61 @@ def predict_redox(payload: PredictionRequest, request: Request) -> dict[str, obj
             "This is a prediction on a DFT-derived RedDB label scale, not an experimental measurement.",
             "The model was trained mainly on quinone and aza-aromatic molecules; other chemotypes are extrapolation.",
         ],
+    }
+
+
+@app.post("/v1/resolve-name")
+def resolve_name(payload: NameResolutionRequest, request: Request) -> dict[str, object]:
+    """Resolve one chemical name through an LLM, then validate the returned SMILES."""
+    client_ip = request.client.host if request.client else "unknown"
+    if not request.app.state.name_limiter.allow(client_ip):
+        raise HTTPException(status_code=429, detail="name-resolution limit exceeded; retry in one minute")
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="name resolution is not configured")
+
+    from openai import OpenAI
+
+    schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "resolved": {"type": "boolean"},
+            "smiles": {"type": "string"},
+        },
+        "required": ["resolved", "smiles"],
+    }
+    prompt = (
+        "Convert this one chemical name to a single neutral, valid SMILES string. "
+        "Use the most conventional structure intended by the name. Do not invent a structure. "
+        "If the name is ambiguous, not a molecule, or you are not confident, set resolved=false "
+        "and smiles to an empty string. Chemical name: " + payload.name.strip()
+    )
+    try:
+        response = OpenAI(api_key=api_key).responses.create(
+            model=os.environ.get("NAME_TO_SMILES_MODEL", "gpt-5-mini"),
+            input=prompt,
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "chemical_name_to_smiles",
+                    "strict": True,
+                    "schema": schema,
+                }
+            },
+        )
+        result = json.loads(response.output_text)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="name resolution failed") from exc
+    if not result.get("resolved"):
+        raise HTTPException(status_code=422, detail="could not resolve this chemical name")
+    try:
+        smiles = _validated_smiles(str(result.get("smiles", "")))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="LLM returned an invalid molecular structure") from exc
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "name": payload.name.strip(),
+        "smiles": smiles,
+        "resolver": {"type": "LLM then RDKit validation", "model": os.environ.get("NAME_TO_SMILES_MODEL", "gpt-5-mini")},
     }
