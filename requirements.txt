@@ -1,0 +1,9 @@
+rdkit
+scikit-learn
+joblib
+numpy
+pandas
+pyarrow
+matplotlib
+seaborn
+# xtb is not on PyPI — install via conda: conda install -c conda-forge xtb

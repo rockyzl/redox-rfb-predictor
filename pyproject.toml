@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "redox-rfb-predictor"
+version = "0.1.0"
+description = "Hybrid xTB + ML prediction of aqueous redox potential for organic redox-flow-battery molecules"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = [
+    "rdkit",
+    "scikit-learn",
+    "joblib",
+    "numpy",
+    "pandas",
+    "pyarrow",
+]
+
+[project.optional-dependencies]
+plots = ["matplotlib", "seaborn"]
+
+[project.scripts]
+predict-redox = "redox_rfb.predictor:_main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,14 @@
+name: redox
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - rdkit
+  - scikit-learn
+  - xtb
+  - pandas
+  - pyarrow
+  - numpy
+  - matplotlib
+  - seaborn
+  - joblib

@@ -1,0 +1,6 @@
+# example RFB candidate molecules, one SMILES per line
+O=C1C=CC(=O)C=C1
+O=C1c2ccccc2C(=O)c2ccccc21
+c1ccncc1
+O=C1C=CC(=O)c2ccccc21
+Oc1ccc(O)cc1
